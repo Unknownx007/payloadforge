@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: payloadforge
+Version: 0.1.0
+Summary: Payload Forge — reverse shell generator and listener. By DEDSEC.
+Author: DEDSEC
+License: AGPL-3.0-or-later
+Requires-Python: >=3.10
+Requires-Dist: rich>=13.7
+Requires-Dist: prompt_toolkit>=3.0
+Requires-Dist: pyperclip>=1.8

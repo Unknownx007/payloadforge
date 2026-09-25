@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "payloadforge"
+version = "0.1.0"
+description = "Payload Forge — reverse shell generator and listener. By DEDSEC."
+requires-python = ">=3.10"
+license = { text = "AGPL-3.0-or-later" }
+authors = [{ name = "DEDSEC" }]
+dependencies = [
+    "rich>=13.7",
+    "prompt_toolkit>=3.0",
+    "pyperclip>=1.8",
+]
+
+[project.scripts]
+payloadforge = "payloadforge.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["payloadforge*"]
