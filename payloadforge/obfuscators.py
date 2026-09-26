@@ -1,10 +1,10 @@
 """Payload obfuscators — variable renaming, string splitting, PS chains.
 
 These are best-effort transformations. They raise the cost of naive
-signature detection; they don't defeat a determined analyst. That's
-the honest ceiling.
+signature detection; they do not defeat a determined analyst.
 """
 
+import base64
 import random
 import re
 import string
@@ -19,14 +19,36 @@ def register_obfuscator(name: str, description: str):
     return deco
 
 
-# ---------- Variable renaming ----------
-
-_VAR_PREFIXES = ["_$", "__", "_0x", "_v", "x_", "_d"]
-
+# ============================================================
+# Variable renaming
+# ============================================================
 
 def _rand_var(prefix: str = "_") -> str:
     alphabet = string.ascii_lowercase + string.digits
     return f"{prefix}{''.join(random.choice(alphabet) for _ in range(8))}"
+
+
+_STRING_LITERAL_RE = re.compile(
+    r'"(?:[^"\\]|\\.)*"'
+    r"|"
+    r"'(?:[^'\\]|\\.)*'"
+)
+
+
+def _protect_strings(data: str) -> tuple[str, list[str]]:
+    originals: list[str] = []
+
+    def keep(m):
+        originals.append(m.group(0))
+        return f"\x00S{len(originals) - 1}\x00"
+
+    return _STRING_LITERAL_RE.sub(keep, data), originals
+
+
+def _restore_strings(data: str, originals: list[str]) -> str:
+    def restore(m):
+        return originals[int(m.group(1))]
+    return re.sub(r"\x00S(\d+)\x00", restore, data)
 
 
 @register_obfuscator(
@@ -34,7 +56,6 @@ def _rand_var(prefix: str = "_") -> str:
     "Rename $VARIABLE references in bash to random names consistently.",
 )
 def obf_vars_bash(data: str) -> str:
-    # Only rename user-defined vars — avoid $?, $$, $!, $0..$9
     special = {"?", "$", "!", "#", "@", "*", "-", "_"}
     seen: dict[str, str] = {}
 
@@ -51,43 +72,45 @@ def obf_vars_bash(data: str) -> str:
 
 @register_obfuscator(
     "vars_python",
-    "Rename simple single-letter Python variables in a payload string.",
+    "Rename single-letter Python variables. Skips string literals and "
+    "skips single letters preceded by a hyphen (CLI flags like -c, -i).",
 )
 def obf_vars_python(data: str) -> str:
-    # Rename standalone single letters that look like variables
-    mapping = {}
-    for ch in string.ascii_lowercase:
-        if re.search(rf"\b{ch}\b", data):
-            mapping[ch] = _rand_var("_")
+    protected, originals = _protect_strings(data)
+    pattern = re.compile(r"(?<!-)\b([a-z])\b")
+    letters = set(m.group(1) for m in pattern.finditer(protected))
+    mapping = {ch: _rand_var("_") for ch in letters}
 
     def repl(m):
-        tok = m.group(0)
-        return mapping.get(tok, tok)
+        return mapping[m.group(1)]
 
-    return re.sub(r"\b[a-z]\b", repl, data)
+    protected = pattern.sub(repl, protected)
+    return _restore_strings(protected, originals)
 
 
-# ---------- String splitting ----------
+# ============================================================
+# String splitting
+# ============================================================
 
 @register_obfuscator(
     "split_strings_bash",
-    "Split string literals into concatenated substrings (bash-style).",
+    "Split double-quoted string literals into adjacent-quoted substrings "
+    "(bash concatenates adjacent strings).",
 )
 def obf_split_bash(data: str) -> str:
-    # Break "word" into "wo""rd" (bash concatenates adjacent quoted strings)
     def repl(m):
         s = m.group(1)
         if len(s) < 4:
             return m.group(0)
         mid = len(s) // 2
-        return f'"{s[:mid]}""{s[mid:]}"'
+        return '"' + s[:mid] + '""' + s[mid:] + '"'
 
     return re.sub(r'"([^"\\]{4,})"', repl, data)
 
 
 @register_obfuscator(
     "split_strings_python",
-    "Split string literals into parenthesized concatenations (Python-style).",
+    "Split double-quoted string literals into parenthesized concatenations.",
 )
 def obf_split_python(data: str) -> str:
     def repl(m):
@@ -95,35 +118,49 @@ def obf_split_python(data: str) -> str:
         if len(s) < 4:
             return m.group(0)
         mid = len(s) // 2
-        return f'("{s[:mid]}" "{s[mid:]}")'
+        return '("' + s[:mid] + '" "' + s[mid:] + '")'
 
     return re.sub(r'"([^"\\]{4,})"', repl, data)
 
 
 @register_obfuscator(
     "split_strings_ps",
-    "Split strings into PowerShell concatenation ('ab' -> ('a'+'b')).",
+    "Replace '.' in PowerShell single-quoted literals with a marker char "
+    "and reconstruct at runtime using .Replace(). "
+    "Example: '127.0.0.1' -> \"127x0x0x1\".Replace(\"x\",\".\")",
 )
 def obf_split_ps(data: str) -> str:
+    def pick_marker(s: str) -> str | None:
+        for cand in ("x", "X", "~", "|", "^", "@", "#", "z", "Q"):
+            if cand not in s:
+                return cand
+        return None
+
     def repl(m):
         s = m.group(1)
-        if len(s) < 4:
+        if len(s) < 4 or "." not in s:
             return m.group(0)
-        parts = [s[i:i + 2] for i in range(0, len(s), 2)]
-        joined = "+".join(f"'{p}'" for p in parts)
-        return f"({joined})"
+        marker = pick_marker(s)
+        if marker is None:
+            return m.group(0)
+        mangled = s.replace(".", marker)
+        # Skip if mangled would contain characters that break PowerShell strings
+        if any(c in mangled for c in ('"', "$", "`")):
+            return m.group(0)
+        return '"' + mangled + '".Replace("' + marker + '",".")'
 
     return re.sub(r"'([^'\\]{4,})'", repl, data)
 
 
-# ---------- PowerShell-specific ----------
+# ============================================================
+# PowerShell-specific
+# ============================================================
 
 @register_obfuscator(
     "ps_case_flip",
-    "Randomize case of PowerShell cmdlets/keywords (case-insensitive language).",
+    "Randomize case of PowerShell cmdlets/keywords.",
 )
 def obf_ps_case(data: str) -> str:
-    # PowerShell is case-insensitive for cmdlets — flip case randomly
     words = [
         "New-Object", "Net.WebClient", "DownloadString", "IEX",
         "Invoke-Expression", "Get-Stream", "Read", "Write",
@@ -143,7 +180,6 @@ def obf_ps_case(data: str) -> str:
     "Insert backtick line-continuations inside PowerShell cmdlet names.",
 )
 def obf_ps_backticks(data: str) -> str:
-    # Insert backticks at cmdlet word boundaries
     words = [
         "New-Object", "Net.WebClient", "DownloadString",
         "Invoke-Expression", "ASCIIEncoding", "GetString", "TcpClient",
@@ -158,7 +194,7 @@ def obf_ps_backticks(data: str) -> str:
 
 @register_obfuscator(
     "ps_concat_chain",
-    "Concatenate + case-flip + split strings for PowerShell payloads.",
+    "Combine split_strings_ps + ps_case_flip for PowerShell payloads.",
 )
 def obf_ps_concat_chain(data: str) -> str:
     data = obf_split_ps(data)
@@ -166,14 +202,15 @@ def obf_ps_concat_chain(data: str) -> str:
     return data
 
 
-# ---------- Base64 chains ----------
+# ============================================================
+# Base64 chains
+# ============================================================
 
 @register_obfuscator(
     "double_b64",
     "Base64 twice — for endpoints that decode once.",
 )
 def obf_double_b64(data: str) -> str:
-    import base64
     inner = base64.b64encode(data.encode()).decode()
     return base64.b64encode(inner.encode()).decode()
 

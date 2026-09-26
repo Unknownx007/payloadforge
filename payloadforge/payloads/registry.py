@@ -40,12 +40,11 @@ def register(
     )
 
 
-def render(name: str, lhost: str, lport: int) -> str:
+def render(name: str, lhost: str, lport: int, http_port: int = 8080) -> str:
     p = PAYLOADS.get(name)
     if p is None:
         raise KeyError(f"unknown payload: {name}")
-    return p.template.format(lhost=lhost, lport=lport)
-
+    return p.template.format(lhost=lhost, lport=lport, http_port=http_port)
 
 def by_category(cat: str) -> list[Payload]:
     return sorted(

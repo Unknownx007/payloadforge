@@ -73,7 +73,6 @@ def cmd_set(s: Session, args: list[str]) -> None:
             info(f"Available: {', '.join(ENCODERS)}")
             return
     elif key == "obfuscators":
-        # comma-separated list, "none" to clear
         if val.lower() in ("none", "off", ""):
             s.obfuscators = []
         else:
@@ -112,7 +111,6 @@ def cmd_list(s: Session, args: list[str]) -> None:
         items = by_category(cat)
         if not items:
             fail(f"No payloads in category '{cat}'.")
-            # Show available categories
             cats = sorted(set(p.category for p in PAYLOADS.values()))
             info(f"Available categories: {', '.join(cats)}")
             return
@@ -123,7 +121,7 @@ def cmd_list(s: Session, args: list[str]) -> None:
         ("Name", {"style": PALETTE["accent"], "no_wrap": True}),
         ("Cat", {"style": PALETTE["dim"], "width": 8}),
         ("Lang", {"style": PALETTE["primary"], "width": 12}),
-        ("Test", {"justify": "center", "width": 6}),
+        ("Local", {"justify": "center", "width": 6}),
         ("Description", {"style": PALETTE["text"]}),
     ])
     for p in items:
@@ -133,6 +131,10 @@ def cmd_list(s: Session, args: list[str]) -> None:
             p.description,
         )
     console.print(t)
+    console.print(
+        f"[{PALETTE['dim']}]Local ✓ = testable with 'testall' or 'verify' on this machine. "
+        f"✗ = requires a real target (Windows, EC2, K8s, SSH server, web server).[/]"
+    )
 
 
 @register("categories", "List payload categories.", category="payloads")
@@ -163,6 +165,10 @@ def cmd_info(s: Session, args: list[str]) -> None:
     console.print(f"  language:    [{PALETTE['accent']}]{p.language}[/]")
     testable = f"[{PALETTE['secondary']}]yes[/]" if p.testable else f"[{PALETTE['danger']}]no[/]"
     console.print(f"  testable:    {testable}")
+    if p.testable:
+        console.print(f"  verified:    [{PALETTE['secondary']}]yes (runs in 'testall'/'verify')[/]")
+    else:
+        console.print(f"  verified:    [{PALETTE['dim']}]no — not locally testable[/]")
     if p.test_note:
         console.print(f"  note:        [{PALETTE['dim']}]{p.test_note}[/]")
     if p.tags:
@@ -198,7 +204,7 @@ def cmd_generate(s: Session, args: list[str]) -> None:
         else:
             i += 1
 
-    payload_str = render(name, s.lhost, s.lport)
+    payload_str = render(name, s.lhost, s.lport, s.http_port)
 
     if s.obfuscators:
         for obf in s.obfuscators:
@@ -315,7 +321,7 @@ def cmd_test(s: Session, args: list[str]) -> None:
 
     lhost_test = "127.0.0.1"
     lport_test = s.lport
-    payload_str = render(name, lhost_test, lport_test)
+    payload_str = render(name, lhost_test, lport_test, s.http_port)
 
     info(f"Testing {name} against 127.0.0.1:{lport_test}")
 
