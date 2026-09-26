@@ -47,7 +47,8 @@ def warn(msg: str) -> None:
 
 
 def info(msg: str) -> None:
-    console.print(f"[{PALETTE['dim']}][*][/] [{PALETTE['dim']}]{msg}[/]")
+    from rich.markup import escape
+    console.print(f"[{PALETTE['dim']}][*][/] [{PALETTE['dim']}]{escape(msg)}[/]")
 
 
 def banner_line(msg: str) -> None:

@@ -176,7 +176,7 @@ def cmd_info(s: Session, args: list[str]) -> None:
     console.print(f"  description: {p.description}")
     console.print()
     console.print(f"[{PALETTE['dim']}]Template:[/]")
-    console.print(f"  {p.template}")
+    console.print(f"  {p.template}", markup=False)
 
 
 @register("generate", "Generate a payload. Usage: generate <name> [-o file] [-c]", category="payloads")
@@ -238,7 +238,7 @@ def cmd_generate(s: Session, args: list[str]) -> None:
             fail(f"Clipboard failed: {e}")
 
     _hr()
-    console.print(payload_str, style=PALETTE["text"])
+    console.print(payload_str, style=PALETTE["text"], markup=False)
     _hr()
 
 
