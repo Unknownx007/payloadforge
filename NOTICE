@@ -1,0 +1,21 @@
+PayloadForge
+Copyright (C) 2025 DEDSEC
+
+This product is licensed under the GNU Affero General Public License
+v3.0 or later (AGPL-3.0-or-later).
+
+Attribution requirement
+=======================
+The original author credit "DEDSEC" must be preserved in any copy,
+fork, or derivative work, as required by Section 5 of the AGPL.
+
+Canonical source
+================
+https://github.com/Unknownx007/payloadforge
+
+Authorized use only
+===================
+PayloadForge is intended for authorized security testing and
+educational purposes only. Use it exclusively on systems you own or
+have explicit written permission to test. Unauthorized access to
+systems is illegal.
