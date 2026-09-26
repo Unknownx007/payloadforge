@@ -640,6 +640,9 @@ GNU Affero General Public License for more details.
 Under Section 5 of the AGPL, the original author credit **DEDSEC** must be preserved in any copy, fork, or derivative work.
 
 ---
+## Disclamer 
+DEDSEC (Unknownx007) is not responsible for your negative actions if you do by using our project
+---
 
 ## Credits
 
