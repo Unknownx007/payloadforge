@@ -285,15 +285,29 @@ def cmd_serve(s: Session, args: list[str]) -> None:
         server.stop()
 
 
-@register("listen", "Start a listener. Usage: listen [tls]", category="listener")
+@register("listen", "Start a listener. Usage: listen [tls|raw]", category="listener")
 def cmd_listen(s: Session, args: list[str]) -> None:
-    use_tls = s.use_tls or (args and args[0].lower() == "tls")
+    """Start a listener.
+
+    Default: line-buffered input — works with every non-PTY shell
+             (bash, PowerShell, cmd, python).
+
+    'listen raw': raw keystroke forwarding — required for shells that
+             allocate their own PTY (python3_pty, socat). Lets you use
+             sudo, vim, ssh, password prompts.
+
+    'listen tls': TLS listener (line mode).
+    """
+    flags = {a.lower() for a in args}
+    use_tls = s.use_tls or "tls" in flags
+    use_raw = "raw" in flags
+
     if use_tls:
         listener = TLSListener(s.lhost, s.lport)
         if listener.start():
             listener.accept()
     else:
-        listener = TCPListener(s.lhost, s.lport)
+        listener = TCPListener(s.lhost, s.lport, raw=use_raw)
         if listener.start():
             listener.accept()
 
